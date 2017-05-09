@@ -8,6 +8,7 @@
 
 #include <openssl/bn.h>
 #include <openssl/err.h>
+#include <openssl/ossl_typ.h>
 #include <openssl/rsa.h>
 
 #include "crypto_compat.h"

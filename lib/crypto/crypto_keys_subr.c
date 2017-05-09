@@ -9,6 +9,7 @@
 
 #include <openssl/bn.h>
 #include <openssl/err.h>
+#include <openssl/ossl_typ.h>
 #include <openssl/rand.h>
 #include <openssl/rsa.h>
 
