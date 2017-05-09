@@ -287,7 +287,7 @@ ccache_read(const char * path)
 		    (intmax_t)(sb.st_size), (intmax_t)(fpos + R.datalen));
 		goto err5;
 	}
-	C->datalen = R.datalen + (fpos % pagesize);
+	C->datalen = R.datalen + (size_t)(fpos % pagesize);
 	if ((C->data = mmap(NULL, C->datalen, PROT_READ,
 #ifdef MAP_NOCORE
 	    MAP_PRIVATE | MAP_NOCORE,
