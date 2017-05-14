@@ -15,6 +15,8 @@
   passphrase-encrypted key file to proceed even if it is anticipated to require
   an excessive amount of memory or CPU time.
 - tarsnap now supports OpenSSL 1.1.
+- tarsnap now displays 'Deleting archive "foo"' when deleting a single archive
+  in verbose mode.
 
 
 Tarsnap Releases
