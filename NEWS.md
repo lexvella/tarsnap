@@ -15,6 +15,8 @@
   passphrase-encrypted key file to proceed even if it is anticipated to require
   an excessive amount of memory or CPU time.
 - tarsnap now supports OpenSSL 1.1.
+- tarsnap now accepts --archive-names filename, which load a list of
+  archive names from a file in addition to any -f options.
 
 
 Tarsnap Releases
