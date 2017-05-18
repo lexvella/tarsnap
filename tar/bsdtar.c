@@ -80,6 +80,7 @@ __FBSDID("$FreeBSD: src/usr.bin/tar/bsdtar.c,v 1.93 2008/11/08 04:43:24 kientzle
 #include "bsdtar.h"
 #include "crypto.h"
 #include "dirutil.h"
+#include "elasticarray.h"
 #include "humansize.h"
 #include "keyfile.h"
 #include "tarsnap_opt.h"
@@ -174,6 +175,9 @@ bsdtar_init(void)
 	bsdtar->conffile_actual = NULL;
 	bsdtar->conffile_buffer = NULL;
 
+	/* Initialize temporary tapenames array. */
+	bsdtar->tapenames_setup = tapenames_setup_init(0);
+
 	/* We don't have bsdtar->progname yet, so we can't use bsdtar_errc. */
 	if (atexit(bsdtar_atexit)) {
 		fprintf(stderr, "tarsnap: Could not register atexit.\n");
@@ -190,6 +194,13 @@ bsdtar_atexit(void)
 	size_t i;
 
 	bsdtar = &bsdtar_storage;
+
+	/* Free temporary archive names (if an error occurred before export). */
+	if (bsdtar->tapenames_setup != NULL) {
+		for (i = 0; i < bsdtar->ntapes; i++)
+			free(*tapenames_setup_get(bsdtar->tapenames_setup, i));
+		tapenames_setup_free(bsdtar->tapenames_setup);
+	}
 
 	/* Free arrays containined strings allocated by strdup. */
 	if (bsdtar->tapenames != NULL) {
@@ -269,11 +280,6 @@ main(int argc, char **argv)
 
 	/* We don't have a machine # yet. */
 	bsdtar->machinenum = (uint64_t)(-1);
-
-	/* Allocate space for archive names; at most argc of them. */
-	if ((bsdtar->tapenames = malloc(argc * sizeof(const char *))) == NULL)
-		bsdtar_errc(bsdtar, 1, ENOMEM, "Cannot allocate memory");
-	bsdtar->ntapes = 0;
 
 	/* Allocate space for config file names; at most argc of them. */
 	if ((bsdtar->configfiles = malloc(argc * sizeof(const char *))) == NULL)
@@ -426,7 +432,9 @@ main(int argc, char **argv)
 		case 'f': /* multitar */
 			if ((tapename_cmdline = strdup(bsdtar->optarg)) == NULL)
 				bsdtar_errc(bsdtar, 1, errno, "Out of memory");
-			bsdtar->tapenames[bsdtar->ntapes] = tapename_cmdline;
+			if (tapenames_setup_append(bsdtar->tapenames_setup,
+			    &tapename_cmdline, 1))
+				bsdtar_errc(bsdtar, 1, errno, "Out of memory");
 			bsdtar->ntapes++;
 			break;
 		case OPTION_FORCE_RESOURCES:
@@ -786,10 +794,11 @@ main(int argc, char **argv)
 	if (bsdtar->option_dryrun && (bsdtar->ntapes == 0)) {
 		if ((tapename_cmdline = strdup("(dry-run)")) == NULL)
 			bsdtar_errc(bsdtar, 1, errno, "Out of memory");
-		bsdtar->tapenames[bsdtar->ntapes] = tapename_cmdline;
+		if (tapenames_setup_append(bsdtar->tapenames_setup,
+		    &tapename_cmdline, 1))
+			bsdtar_errc(bsdtar, 1, errno, "Out of memory");
 		bsdtar->ntapes++;
 	}
-
 
 	/* At this point we must have a mode set. */
 	if (bsdtar->mode == '\0')
@@ -827,6 +836,12 @@ main(int argc, char **argv)
 		/* Process options from system-wide tarsnap.conf. */
 		configfile(bsdtar, ETC_TARSNAP_CONF, 0);
 	}
+
+	/* Extract tapenames from tapenames_setup. */
+	if (tapenames_setup_export(bsdtar->tapenames_setup, &bsdtar->tapenames,
+	    &bsdtar->ntapes))
+		bsdtar_errc(bsdtar, 1, 0, "foo");
+	bsdtar->tapenames_setup = NULL;
 
 	/* Continue with more sanity-checking. */
 	if ((bsdtar->ntapes == 0) &&
