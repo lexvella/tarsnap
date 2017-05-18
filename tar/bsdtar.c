@@ -111,6 +111,10 @@ static void		 configfile(struct bsdtar *, const char *fname,
 			     int fromcmdline);
 static int		 configfile_helper(struct bsdtar *bsdtar,
 			     const char *line);
+static void		 archive_names(struct bsdtar *bsdtar,
+			     const char *fname);
+static int		 archive_names_helper(struct bsdtar *bsdtar,
+			     const char *line);
 static void		 dooption(struct bsdtar *, const char *,
 			     const char *, int);
 static int		 load_keys(struct bsdtar *, const char *path);
@@ -371,6 +375,17 @@ main(int argc, char **argv)
 		case OPTION_AGGRESSIVE_NETWORKING: /* tarsnap */
 			optq_push(bsdtar, "aggressive-networking", NULL);
 			break;
+		case OPTION_ARCHIVE_NAMES:
+			if (bsdtar->option_archive_names_set)
+				bsdtar_errc(bsdtar, 1, errno,
+				    "Two --archive-names options given");
+			if (bsdtar->optarg == NULL)
+				bsdtar_errc(bsdtar, 1, 0,
+				    "Argument required for --archive-names");
+			bsdtar->option_archive_names_set = 1;
+
+			/* Read tapenames from --archive_names file. */
+			archive_names(bsdtar, bsdtar->optarg);
 		case 'B': /* GNU tar */
 			/* libarchive doesn't need this; just ignore it. */
 			break;
@@ -1396,6 +1411,48 @@ configfile_helper(struct bsdtar *bsdtar, const char *line)
 	free(bsdtar->conf_opt);
 	bsdtar->conf_opt = NULL;
 
+	return (0);
+}
+
+static void
+archive_names(struct bsdtar *bsdtar, const char *fname)
+{
+	struct stat sb;
+
+	/* If it's a file, does it exist? */
+	if (strcmp(fname, "-") != 0) {
+		if (stat(fname, &sb))
+			bsdtar_errc(bsdtar, 1, errno, "stat(%s)", fname);
+	}
+
+	/* Process the file. */
+	process_lines(bsdtar, fname, archive_names_helper, 0);
+}
+
+/* Process a line of configuration file. */
+static int
+archive_names_helper(struct bsdtar *bsdtar, const char *line)
+{
+	char * name;
+
+	/* Skip any leading whitespace. */
+	while ((line[0] == ' ') || (line[0] == '\t'))
+		line++;
+
+	/* Ignore comments and blank lines. */
+	if ((line[0] == '#') || (line[0] == '\0'))
+		return (0);
+
+	/* Duplicate line. */
+	if ((name = strdup(line)) == NULL)
+		bsdtar_errc(bsdtar, 1, errno, "Out of memory");
+
+	/* Record archive name. */
+	if (tapenames_setup_append(bsdtar->tapenames_setup, &name, 1))
+		bsdtar_errc(bsdtar, 1, errno, "Out of memory");
+	bsdtar->ntapes++;
+
+	/* Success! */
 	return (0);
 }
 
